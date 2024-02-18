@@ -1,0 +1,108 @@
+ // Gold Master EA - Developed by Forex Robot Easy Team (forexroboteasy.com)
+
+// Include necessary libraries
+#include <Trade\Trade.mqh>
+#include <MovingAverages\MovingAverages.mqh>
+#include <TrendLine\TrendLine.mqh>
+#include <Notifications\Notifications.mqh>
+#include <Backtesting\Backtesting.mqh>
+
+// Define constants
+#define SYMBOL 'XAUUSD'
+#define TIMEFRAME PERIOD_H1
+#define LOT_SIZE 0.01
+#define RISK_PERCENTAGE 1
+#define STOP_LOSS 100
+#define TAKE_PROFIT 200
+
+// Initialize objects
+CTrade trade;
+CMovingAverages movingAverages;
+CTrendLine trendLine;
+CNotifications notifications;
+CBacktesting backtesting;
+
+// Define entry and exit signals
+bool IsEntrySignal()
+{
+   double maValue = movingAverages.iMA(SYMBOL, TIMEFRAME, 20, 0, MODE_SMA, PRICE_CLOSE, 0);
+   double tlValue = trendLine.iTrendLine(SYMBOL, TIMEFRAME, MODE_MAIN, 0);
+
+   return (maValue > tlValue);
+}
+
+bool IsExitSignal()
+{
+   double maValue = movingAverages.iMA(SYMBOL, TIMEFRAME, 20, 0, MODE_SMA, PRICE_CLOSE, 0);
+   double tlValue = trendLine.iTrendLine(SYMBOL, TIMEFRAME, MODE_MAIN, 0);
+
+   return (maValue < tlValue);
+}
+
+// Define trade execution function
+void ExecuteTrade()
+{
+   double entryPrice = trade.Ask() + 10 * trade.Point();
+   double stopLossPrice = entryPrice - STOP_LOSS * trade.Point();
+   double takeProfitPrice = entryPrice + TAKE_PROFIT * trade.Point();
+
+   trade.BuyStop(LOT_SIZE, entryPrice, stopLossPrice, takeProfitPrice);
+}
+
+// Define trade adjustment function
+void AdjustTradeParameters()
+{
+   double accountBalance = trade.AccountBalance();
+   double riskAmount = accountBalance * RISK_PERCENTAGE / 100;
+
+   trade.SetLots(riskAmount / STOP_LOSS);
+}
+
+// Define trade monitoring function
+void MonitorTradePerformance()
+{
+   double currentProfit = trade.Profit();
+   double accountBalance = trade.AccountBalance();
+
+   Print('Current Profit: ', currentProfit);
+   Print('Account Balance: ', accountBalance);
+
+   notifications.SendPushNotification('Current Profit: ' + DoubleToString(currentProfit));
+   notifications.SendEmail('Current Profit: ' + DoubleToString(currentProfit));
+}
+
+// Main function
+void OnTick()
+{
+   if (IsEntrySignal())
+   {
+      ExecuteTrade();
+      AdjustTradeParameters();
+   }
+
+   if (IsExitSignal())
+   {
+      trade.CloseAll();
+   }
+
+   MonitorTradePerformance();
+}
+
+// Backtesting function
+void OnTester()
+{
+   backtesting.SetSymbol(SYMBOL);
+   backtesting.SetTimeframe(TIMEFRAME);
+   backtesting.SetInitialDeposit(10000);
+   backtesting.SetSpread(10);
+
+   backtesting.Start();
+
+   while (!backtesting.IsFinished())
+   {
+      backtesting.Advance();
+      OnTick();
+   }
+
+   backtesting.PrintReport();
+}
